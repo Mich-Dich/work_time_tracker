@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'work_session_manager.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_time_picker_spinner/flutter_time_picker_spinner.dart';
 
 
 class WorkTimeTracker extends StatefulWidget {
@@ -461,42 +462,60 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
                       label: 'Start Time',
                       value: selectedStartTime.format(context),
                       onTap: () async {
-                        final TimeOfDay? picked = await showTimePicker(
+                        TimeOfDay? picked = await showDialog<TimeOfDay>(
                           context: context,
-                          initialTime: selectedStartTime,
-                          builder: (context, child) {
-                            return Theme(
-                              data: ThemeData.dark().copyWith(
-                                colorScheme: const ColorScheme.dark(
-                                  primary: Color(0xFF00F5FF),
-                                  onPrimary: Colors.black,
-                                  surface: Color(0xFF1A1A1A),
-                                  onSurface: Colors.white,
-                                ),
-                                dialogBackgroundColor: const Color(0xFF1A1A1A),
-                                timePickerTheme: TimePickerThemeData(
-                                  backgroundColor: const Color(0xFF1A1A1A),
-                                  hourMinuteColor: const Color(0xFF2A2A2A),
-                                  hourMinuteTextColor: Colors.white,
-                                  dayPeriodColor: const Color(0xFF2A2A2A),
-                                  dayPeriodTextColor: Colors.white,
-                                  dialBackgroundColor: const Color(0xFF2A2A2A),
-                                  dialHandColor: const Color(0xFF00F5FF),
-                                  dialTextColor: Colors.white,
-                                  entryModeIconColor: const Color(0xFF00F5FF),
+                          builder: (BuildContext context) {
+                            TimeOfDay tempPickedTime = selectedStartTime;
+                            
+                            return AlertDialog(
+                              backgroundColor: const Color(0xFF1A1A1A),
+                              surfaceTintColor: Colors.transparent,
+                              title: const Text(
+                                'Select Start Time', 
+                                style: TextStyle(color: Color(0xFF00F5FF))
+                              ),
+                              content: Container(
+                                height: 200,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    // Hours picker
+                                    _buildQuarterHourTimePicker(
+                                      initialTime: selectedStartTime,
+                                      onTimeChanged: (time) {
+                                        tempPickedTime = time;
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: child!,
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text(
+                                    'Cancel', 
+                                    style: TextStyle(color: Colors.white70)
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop(tempPickedTime);
+                                  },
+                                  child: const Text(
+                                    'OK', 
+                                    style: TextStyle(color: Color(0xFF00F5FF))
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         );
                         if (picked != null) {
-                          final roundedTime = _roundToNearestQuarterHourTime(picked);
                           setState(() {
-                            selectedStartTime = roundedTime;
+                            selectedStartTime = picked;
                             
                             // Validate that start time is before end time
-                            final newTotalDuration = _calculateDuration(roundedTime, selectedEndTime);
+                            final newTotalDuration = _calculateDuration(picked, selectedEndTime);
                             if (newTotalDuration <= Duration.zero) {
                               _showErrorDialog('Start time must be before end time');
                               return;
@@ -518,42 +537,60 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
                       label: 'End Time',
                       value: selectedEndTime.format(context),
                       onTap: () async {
-                        final TimeOfDay? picked = await showTimePicker(
+                        TimeOfDay? picked = await showDialog<TimeOfDay>(
                           context: context,
-                          initialTime: selectedEndTime,
-                          builder: (context, child) {
-                            return Theme(
-                              data: ThemeData.dark().copyWith(
-                                colorScheme: const ColorScheme.dark(
-                                  primary: Color(0xFF00F5FF),
-                                  onPrimary: Colors.black,
-                                  surface: Color(0xFF1A1A1A),
-                                  onSurface: Colors.white,
-                                ),
-                                dialogBackgroundColor: const Color(0xFF1A1A1A),
-                                timePickerTheme: TimePickerThemeData(
-                                  backgroundColor: const Color(0xFF1A1A1A),
-                                  hourMinuteColor: const Color(0xFF2A2A2A),
-                                  hourMinuteTextColor: Colors.white,
-                                  dayPeriodColor: const Color(0xFF2A2A2A),
-                                  dayPeriodTextColor: Colors.white,
-                                  dialBackgroundColor: const Color(0xFF2A2A2A),
-                                  dialHandColor: const Color(0xFF00F5FF),
-                                  dialTextColor: Colors.white,
-                                  entryModeIconColor: const Color(0xFF00F5FF),
+                          builder: (BuildContext context) {
+                            TimeOfDay tempPickedTime = selectedEndTime;
+                            
+                            return AlertDialog(
+                              backgroundColor: const Color(0xFF1A1A1A),
+                              surfaceTintColor: Colors.transparent,
+                              title: const Text(
+                                'Select End Time', 
+                                style: TextStyle(color: Color(0xFF00F5FF))
+                              ),
+                              content: Container(
+                                height: 200,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    // Hours picker
+                                    _buildQuarterHourTimePicker(
+                                      initialTime: selectedEndTime,
+                                      onTimeChanged: (time) {
+                                        tempPickedTime = time;
+                                      },
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: child!,
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text(
+                                    'Cancel', 
+                                    style: TextStyle(color: Colors.white70)
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop(tempPickedTime);
+                                  },
+                                  child: const Text(
+                                    'OK', 
+                                    style: TextStyle(color: Color(0xFF00F5FF))
+                                  ),
+                                ),
+                              ],
                             );
                           },
                         );
                         if (picked != null) {
-                          final roundedTime = _roundToNearestQuarterHourTime(picked);
                           setState(() {
-                            selectedEndTime = roundedTime;
+                            selectedEndTime = picked;
                             
                             // Validate that end time is after start time
-                            final newTotalDuration = _calculateDuration(selectedStartTime, roundedTime);
+                            final newTotalDuration = _calculateDuration(selectedStartTime, picked);
                             if (newTotalDuration <= Duration.zero) {
                               _showErrorDialog('End time must be after start time');
                               return;
@@ -740,7 +777,134 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
       },
     );
   }
-  
+
+  // Add this new function to create the quarter-hour time picker
+  Widget _buildQuarterHourTimePicker({
+    required TimeOfDay initialTime,
+    required Function(TimeOfDay) onTimeChanged,
+  }) {
+    int selectedHour = initialTime.hour;
+    int selectedMinute = initialTime.minute;
+    
+    // Convert minute to nearest quarter hour
+    final quarterHours = [0, 15, 30, 45];
+    int initialMinuteIndex = 0;
+    for (int i = 0; i < quarterHours.length; i++) {
+      if (selectedMinute <= quarterHours[i] || i == quarterHours.length - 1) {
+        initialMinuteIndex = i;
+        break;
+      }
+    }
+    selectedMinute = quarterHours[initialMinuteIndex];
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Hours wheel
+            _buildTimeWheel(
+              items: List.generate(24, (index) => index),
+              selectedIndex: selectedHour,
+              label: 'HOURS',
+              onChanged: (index) {
+                setState(() {
+                  selectedHour = index;
+                  onTimeChanged(TimeOfDay(hour: selectedHour, minute: selectedMinute));
+                });
+              },
+            ),
+            const SizedBox(width: 20),
+            // Minutes wheel (only quarter hours)
+            _buildTimeWheel(
+              items: quarterHours,
+              selectedIndex: quarterHours.indexOf(selectedMinute),
+              label: 'MINUTES',
+              onChanged: (index) {
+                setState(() {
+                  selectedMinute = quarterHours[index];
+                  onTimeChanged(TimeOfDay(hour: selectedHour, minute: selectedMinute));
+                });
+              },
+            ),
+            const SizedBox(width: 10),
+            // AM/PM indicator (for 12-hour format)
+            if (!MediaQuery.of(context).alwaysUse24HourFormat) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  selectedHour < 12 ? 'AM' : 'PM',
+                  style: const TextStyle(
+                    color: Color(0xFF00F5FF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  // Update the existing _buildDurationWheel to work for time as well
+  Widget _buildTimeWheel({
+    required List<int> items,
+    required int selectedIndex,
+    required String label,
+    required Function(int) onChanged,
+  }) {
+    return SizedBox(
+      width: 80,
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF00F5FF),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 150,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: ListWheelScrollView(
+              itemExtent: 40,
+              diameterRatio: 1.5,
+              onSelectedItemChanged: onChanged,
+              children: items.map((value) {
+                return Center(
+                  child: Text(
+                    value.toString().padLeft(2, '0'),
+                    style: TextStyle(
+                      color: items.indexOf(value) == selectedIndex 
+                          ? const Color(0xFF00F5FF) 
+                          : Colors.white70,
+                      fontSize: 18,
+                      fontWeight: items.indexOf(value) == selectedIndex 
+                          ? FontWeight.w600 
+                          : FontWeight.normal,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEditField({
     required IconData icon,
     required String label,
