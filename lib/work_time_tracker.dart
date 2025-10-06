@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'work_session_manager.dart';
+import 'location_manager.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_time_picker_spinner/flutter_time_picker_spinner.dart';
 
@@ -13,16 +14,257 @@ class WorkTimeTracker extends StatefulWidget {
 }
 
 class _WorkTimeTrackerState extends State<WorkTimeTracker> {
+
   final WorkSessionManager _sessionManager = WorkSessionManager();
+  late LocationManager _locationManager; // Add this
   bool _isRunning = false;
   bool _isBreakOngoing = false;
   DateTime? _currentStartTime;
   List<WorkSession> _todaySessions = [];
   List<WorkSession> _allSessions = [];
   int _currentPageIndex = 0;
+  
+  // Add these new state variables
+  bool _isAutoTrackingEnabled = false;
+  bool _isLoadingLocation = false;
+  Map<String, dynamic>? _workLocation;
+  double? _distanceToWork;
+  String _locationStatus = 'Checking...';
 
 
 
+  Future<void> _loadLocationSettings() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+    
+    try {
+      _isAutoTrackingEnabled = await _locationManager.isAutoTrackingEnabled();
+      _workLocation = await _locationManager.getWorkLocation();
+      await _updateLocationStatus();
+    } catch (e) {
+      print('Error loading location settings: $e');
+    }
+    
+    setState(() {
+      _isLoadingLocation = false;
+    });
+  }
+
+  Future<void> _updateLocationStatus() async {
+    try {
+      final isAtWork = await _locationManager.isAtWorkLocation();
+      _distanceToWork = await _locationManager.getDistanceToWork();
+      
+      setState(() {
+        if (isAtWork) {
+          _locationStatus = 'At work location';
+        } else if (_distanceToWork != null) {
+          if (_distanceToWork! < 1000) {
+            _locationStatus = '${_distanceToWork!.toStringAsFixed(0)}m from work';
+          } else {
+            _locationStatus = '${(_distanceToWork! / 1000).toStringAsFixed(1)}km from work';
+          }
+        } else {
+          _locationStatus = 'Location unknown';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _locationStatus = 'Location error';
+      });
+    }
+  }
+
+  Future<void> _setWorkLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      // Get current location
+      final currentLocation = await _locationManager.getCurrentLocation();
+      
+      if (currentLocation != null && mounted) {
+        // Show confirmation dialog
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1A1A1A),
+              surfaceTintColor: Colors.transparent,
+              title: const Text(
+                'Set Work Location',
+                style: TextStyle(color: Color(0xFF00F5FF)),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Set this as your work location?',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Lat: ${currentLocation['latitude']!.toStringAsFixed(6)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  Text(
+                    'Lng: ${currentLocation['longitude']!.toStringAsFixed(6)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text(
+                    'Set Location',
+                    style: TextStyle(color: Color(0xFF00F5FF)),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (confirmed == true) {
+          // Create address string from coordinates since we're not reverse geocoding
+          final address = 'Work Location (${currentLocation['latitude']!.toStringAsFixed(4)}, ${currentLocation['longitude']!.toStringAsFixed(4)})';
+          
+          await _locationManager.setWorkLocation(
+            currentLocation['latitude']!,
+            currentLocation['longitude']!,
+            address,
+          );
+          
+          setState(() {
+            _workLocation = {
+              'latitude': currentLocation['latitude'],
+              'longitude': currentLocation['longitude'],
+              'address': address,
+            };
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: Color(0xFF00F5FF),
+                content: Text(
+                  'Work location set successfully',
+                  style: TextStyle(color: Colors.black),
+                ),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          _showErrorDialog('Could not get current location. Please check location permissions.');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Error setting work location: $e');
+      }
+    }
+
+    setState(() {
+      _isLoadingLocation = false;
+    });
+  }
+
+  // Add this new method for toggling auto tracking
+  Future<void> _toggleAutoTracking(bool enabled) async {
+    setState(() {
+      _isLoadingLocation = true;
+    });
+
+    try {
+      if (enabled && _workLocation == null) {
+        if (mounted) {
+          final shouldSetLocation = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF1A1A1A),
+                surfaceTintColor: Colors.transparent,
+                title: const Text(
+                  'Set Work Location First',
+                  style: TextStyle(color: Color(0xFF00F5FF)),
+                ),
+                content: const Text(
+                  'You need to set your work location before enabling automatic tracking.',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text(
+                      'Set Location',
+                      style: TextStyle(color: Color(0xFF00F5FF)),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+          
+          if (shouldSetLocation == true) {
+            await _setWorkLocation();
+            if (_workLocation != null) {
+              await _locationManager.setAutoTrackingEnabled(true);
+              setState(() {
+                _isAutoTrackingEnabled = true;
+              });
+            }
+          }
+        }
+      } else {
+        await _locationManager.setAutoTrackingEnabled(enabled);
+        setState(() {
+          _isAutoTrackingEnabled = enabled;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF00F5FF),
+              content: Text(
+                enabled ? 'Auto tracking enabled' : 'Auto tracking disabled',
+                style: TextStyle(color: Colors.black),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorDialog('Error toggling auto tracking: $e');
+      }
+    }
+
+    setState(() {
+      _isLoadingLocation = false;
+    });
+  }
 
   // Add this function to the _WorkTimeTrackerState class
   void _exportSessions() async {
@@ -178,7 +420,9 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
   @override
   void initState() {
     super.initState();
+    _locationManager = LocationManager(_sessionManager); // Initialize location manager
     _loadSessions();
+    _loadLocationSettings();
   }
 
   Future<void> _loadSessions() async {
@@ -1309,7 +1553,6 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
   }
 
   Widget _buildSessionCard(WorkSession session, bool showDate) {
-    // Calculate net duration (total - breaks)
     final netDuration = session.duration! - session.breakDuration;
     
     return Card(
@@ -1335,18 +1578,31 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${_formatTime(session.startTime)} - ${_formatTime(session.endTime!)}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_formatTime(session.startTime)} - ${_formatTime(session.endTime!)}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (session.isAutoStarted)
+                            Text(
+                              'Auto-started',
+                              style: TextStyle(
+                                color: Color(0xFF00F5FF),
+                                fontSize: 10,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // Show net duration instead of total duration
                           Text(
                             _formatDuration(netDuration),
                             style: const TextStyle(
@@ -1399,15 +1655,110 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
   Widget _buildTimerPage() {
     return Column(
       children: [
-        // Timer section
+        // Location status card
+        if (_workLocation != null || _isAutoTrackingEnabled)
+          Card(
+            margin: const EdgeInsets.all(16),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, 
+                          color: _isAutoTrackingEnabled 
+                              ? Color(0xFF00F5FF) 
+                              : Colors.grey,
+                          size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'Location Tracking',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Spacer(),
+                      if (_isLoadingLocation)
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF00F5FF),
+                          ),
+                        )
+                      else
+                        Switch(
+                          value: _isAutoTrackingEnabled,
+                          onChanged: _toggleAutoTracking,
+                          activeColor: Color(0xFF00F5FF),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  if (_workLocation != null) ...[
+                    Text(
+                      _workLocation!['address'] ?? 'Work Location',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.info, color: Color(0xFF00F5FF), size: 12),
+                        SizedBox(width: 4),
+                        Text(
+                          _locationStatus,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Text(
+                      'No work location set',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: _setWorkLocation,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF00F5FF),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: Text(
+                        'Set Work Location',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+        // Timer section (existing code)
         Container(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
+              // ... existing timer UI code remains the same ...
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Main timer button
                   Container(
                     width: 120,
                     height: 120,
@@ -1438,7 +1789,6 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
                     ),
                   ),
                   const SizedBox(width: 20),
-                  // Break button - only show when timer is running
                   if (_isRunning)
                     Container(
                       width: 80,
@@ -1483,7 +1833,6 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
                 ],
               ),
               const SizedBox(height: 16),
-              // Break info when session is running
               if (_isRunning)
                 FutureBuilder<WorkSession?>(
                   future: _sessionManager.getOngoingSession(),
@@ -1501,6 +1850,15 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 14,
+                              ),
+                            ),
+                          if (session.isAutoStarted)
+                            Text(
+                              'Auto-started',
+                              style: TextStyle(
+                                color: Color(0xFF00F5FF),
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
                               ),
                             ),
                           if (_isBreakOngoing)
@@ -1521,7 +1879,6 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
           ),
         ),
         const Divider(color: Color(0xFF333333), height: 1),
-        // Today's sessions list
         Expanded(
           child: _buildSessionsList(_todaySessions, showDate: false),
         ),
@@ -1530,7 +1887,160 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
   }
 
   Widget _buildHistoryPage() {
-    return _buildSessionsList(_allSessions, showDate: true);
+    return Column(
+      children: [
+        // Location settings card
+        Card(
+          margin: const EdgeInsets.all(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.settings, color: Color(0xFF00F5FF), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Location Settings',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                
+                // Work location section
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Work Location',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          if (_workLocation != null)
+                            Text(
+                              _workLocation!['address'] ?? 'Work Location',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          else
+                            Text(
+                              'Not set',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: _setWorkLocation,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF00F5FF),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(_workLocation != null ? 'Update' : 'Set'),
+                    ),
+                  ],
+                ),
+                
+                SizedBox(height: 16),
+                
+                // Auto tracking toggle
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Automatic Tracking',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Start/stop automatically when you arrive/leave work',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_isLoadingLocation)
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF00F5FF),
+                        ),
+                      )
+                    else
+                      Switch(
+                        value: _isAutoTrackingEnabled,
+                        onChanged: _toggleAutoTracking,
+                        activeColor: Color(0xFF00F5FF),
+                      ),
+                  ],
+                ),
+                
+                if (_isAutoTrackingEnabled && _workLocation != null) ...[
+                  SizedBox(height: 16),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info, color: Color(0xFF00F5FF), size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Auto tracking is active. Sessions will start when you arrive and stop when you leave.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        
+        // Sessions list
+        Expanded(
+          child: _buildSessionsList(_allSessions, showDate: true),
+        ),
+      ],
+    );
   }
 
   @override
@@ -1584,4 +2094,11 @@ class _WorkTimeTrackerState extends State<WorkTimeTracker> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _locationManager.dispose();
+    super.dispose();
+  }
+
 }

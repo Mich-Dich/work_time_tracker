@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
 class WorkSession {
   final DateTime startTime;
   final DateTime? endTime;
   final Duration? duration;
   final Duration breakDuration;
-  final List<BreakPeriod> breaks; // Track individual breaks
+  final List<BreakPeriod> breaks;
+  final bool isAutoStarted; // Add this field
 
   WorkSession({
     required this.startTime,
@@ -14,6 +16,7 @@ class WorkSession {
     this.duration,
     this.breakDuration = Duration.zero,
     this.breaks = const [],
+    this.isAutoStarted = false, // Add this with default
   });
 
   WorkSession copyWith({
@@ -22,6 +25,7 @@ class WorkSession {
     Duration? duration,
     Duration? breakDuration,
     List<BreakPeriod>? breaks,
+    bool? isAutoStarted, // Add this
   }) {
     return WorkSession(
       startTime: startTime ?? this.startTime,
@@ -29,6 +33,7 @@ class WorkSession {
       duration: duration ?? this.duration,
       breakDuration: breakDuration ?? this.breakDuration,
       breaks: breaks ?? this.breaks,
+      isAutoStarted: isAutoStarted ?? this.isAutoStarted, // Add this
     );
   }
 
@@ -39,6 +44,7 @@ class WorkSession {
       'duration': duration?.inSeconds,
       'breakDuration': breakDuration.inSeconds,
       'breaks': breaks.map((breakPeriod) => breakPeriod.toJson()).toList(),
+      'isAutoStarted': isAutoStarted, // Add this
     };
   }
 
@@ -55,6 +61,7 @@ class WorkSession {
       breaks: json['breaks'] != null
           ? (json['breaks'] as List).map((breakJson) => BreakPeriod.fromJson(breakJson)).toList()
           : [],
+      isAutoStarted: json['isAutoStarted'] ?? false, // Add this
     );
   }
 }
@@ -163,10 +170,14 @@ class WorkSessionManager {
     await prefs.setStringList(_sessionsKey, sessionsJson);
   }
 
-  Future<void> startSession() async {
+  Future<void> startSession({bool isAuto = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final roundedStartTime = roundToNearestQuarterHour(DateTime.now());
-    final newSession = WorkSession(startTime: roundedStartTime, breaks: []);
+    final newSession = WorkSession(
+      startTime: roundedStartTime, 
+      breaks: [],
+      isAutoStarted: isAuto, // Set this based on parameter
+    );
     
     // Save ongoing session
     await prefs.setString(_ongoingSessionKey, json.encode(newSession.toJson()));
