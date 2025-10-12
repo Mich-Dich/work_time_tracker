@@ -1,37 +1,66 @@
 import 'package:flutter/material.dart';
 import 'work_time_tracker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final colorValue = prefs.getInt('primary_color');
+  runApp(MyApp(initialColor: colorValue));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final int? initialColor;
+
+  const MyApp({super.key, this.initialColor});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+
+  static _MyAppState? of(BuildContext context) =>
+      context.findAncestorStateOfType<_MyAppState>();
+}
+
+class _MyAppState extends State<MyApp> {
+  Color _primaryColor = const Color(0xFF00F5FF);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialColor != null) {
+      _primaryColor = Color(widget.initialColor!);
+    }
+  }
+
+  void updatePrimaryColor(Color color) {
+    setState(() {
+      _primaryColor = color;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Work Time Tracker',
       theme: ThemeData.dark().copyWith(
-        useMaterial3: true,
         scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00F5FF),
-          secondary: Color(0xFF7B61FF),
-          surface: Color(0xFF1A1A1A),
+        colorScheme: ColorScheme.dark(
+          primary: _primaryColor,
+          secondary: const Color(0xFF7B61FF),
+          surface: const Color(0xFF1A1A1A),
           onSurface: Colors.white,
-          background: Color(0xFF0A0A0A),
         ),
-        appBarTheme: const AppBarTheme(
+        appBarTheme: AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
-          titleTextStyle: TextStyle(
+          titleTextStyle: const TextStyle(
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
           ),
+          iconTheme: IconThemeData(color: _primaryColor),
         ),
         textTheme: const TextTheme(
           bodyMedium: TextStyle(color: Colors.white, fontSize: 14),
@@ -58,7 +87,7 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00F5FF),
+            backgroundColor: _primaryColor,
             foregroundColor: Colors.black,
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -72,13 +101,13 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        tabBarTheme: const TabBarThemeData(
-          labelColor: Color(0xFF00F5FF),
-          unselectedLabelColor: Color(0xFF666666),
+        tabBarTheme: TabBarThemeData(
+          labelColor: _primaryColor,
+          unselectedLabelColor: const Color(0xFF666666),
           indicator: UnderlineTabIndicator(
-            borderSide: BorderSide(width: 2.0, color: Color(0xFF00F5FF)),
+            borderSide: BorderSide(width: 2.0, color: _primaryColor),
           ),
-          labelStyle: TextStyle(
+          labelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 14,
             letterSpacing: -0.3,
